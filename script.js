@@ -1,4 +1,31 @@
+/**
+ * OrderCheck App - Hauptmodul
+ *
+ * Architektur:
+ * - Frontend: Vanilla JS + ES Modules
+ * - Auth: Microsoft Teams SSO via MSAL Browser
+ * - Backend: SharePoint Online + Microsoft Graph API
+ *
+ * Ablauf:
+ * 1. User authentifiziert sich via Teams SSO (auth-start.html → auth-end.html)
+ * 2. PDFs werden nach SharePoint hochgeladen und mit einer Prüf-ID versehen
+ * 3. Ein Power Automate Flow verarbeitet die PDFs und schreibt Ergebnisse in eine SharePoint-Liste
+ * 4. Ergebnisse werden per Graph API abgerufen und tabellarisch dargestellt
+ */
+
 import { PublicClientApplication } from 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/+esm';
+
+const CONFIG = {
+    msal: {
+        clientId: "9603fe2f-fad8-4a18-9950-14f1eb195745",
+        tenantId: "2b71e8a3-7c31-40db-84b0-9c7e50b9ea71",
+        scopes: ['User.Read', 'Files.ReadWrite', 'Sites.ReadWrite.All']
+    },
+    sharePoint: {
+        siteId: "edox.sharepoint.com,e68093ae-074a-4851-88dd-31284b07b284,e94104cd-b270-4e09-b29a-1932cc934dbf",
+        listId: "ecac4b28-01fb-489a-ad32-f5ee4fd4bd83"
+    }
+};
 
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -21,15 +48,19 @@ let activeAccount = null;
 let selectedFiles = [];
 let pruefvorgaenge = [];
 
-const siteId = "edox.sharepoint.com,e68093ae-074a-4851-88dd-31284b07b284,e94104cd-b270-4e09-b29a-1932cc934dbf";
-
-const graphScopes = ['User.Read', 'Files.ReadWrite', 'Sites.ReadWrite.All'];
-
 await loadSavedConfig();
 renderFileList();
-renderAuthInfo();
-updateAuthUI();
+updateAuthDisplay();
 
+/**
+ * Pollt SharePoint nach Ergebnissen für einen Prüfvorgang.
+ * Wiederholt den Abruf alle 5 Sekunden bis max. 10 Mal.
+ *
+ * @param {string} token - Microsoft Graph Access Token
+ * @param {string} pruefId - Eindeutige ID des Prüfvorgangs
+ * @returns {Promise<Array>} Array der Ergebnis-Items
+ * @throws {Error} Wenn nach max. Versuchen kein Ergebnis vorhanden ist
+ */
 async function waitForResult(token, pruefId) {
     let tries = 0;
     const maxTries = 10;
@@ -71,7 +102,7 @@ loginBtn.addEventListener('click', async () => {
         if (accounts.length > 0) {
             activeAccount = accounts[0];
             msalInstance.setActiveAccount(activeAccount);
-            renderAuthInfo();
+            updateAuthDisplay();
             setStatus('Anmeldung erfolgreich.');
         } else {
             setStatus('Anmeldung abgeschlossen. Bitte Seite einmal neu laden.');
@@ -170,9 +201,7 @@ logoutBtn.addEventListener('click', async () => {
         activeAccount = null;
         msalInstance.setActiveAccount(null);
 
-        renderAuthInfo();
-        updateAuthUI();
-
+        updateAuthDisplay();
         setStatus('Aus App-Ansicht abgemeldet. Login kann erneut gestartet werden.');
 
     } catch (error) {
@@ -214,15 +243,16 @@ uploadBtn.addEventListener('click', async () => {
         const pruefId = crypto.randomUUID();
         for (const item of selectedFiles) {
             try {
-                item.status = '⏳ lädt...';
+                item.status = 'uploading';
                 renderFileList();
 
                 await uploadSmallFileToSharePoint(item.file, token, pruefId);
 
-                item.status = '✔ hochgeladen';
+                item.status = 'success';
                 renderFileList();
             } catch (err) {
-                item.status = '❌ Fehler';
+                item.status = 'error';
+                hasError = true;
                 renderFileList();
             }
         }
@@ -252,26 +282,35 @@ async function loadSavedConfig() {
     await initializeMsal();
 }
 
-function updateAuthUI() {
-    const account = msalInstance.getActiveAccount();
+/**
+ * Aktualisiert die Auth-UI basierend auf dem aktuellen Login-Status.
+ * Setzt den authInfo-Farbpunkt und zeigt/versteckt Login/Logout-Buttons.
+ */
+function updateAuthDisplay() {
+    const account = msalInstance?.getActiveAccount() || activeAccount;
 
     if (account) {
+        authInfo.classList.add("logged-in");
+        authInfo.title = "Angemeldet";
         loginBtn.style.display = "none";
         logoutBtn.style.display = "inline-block";
     } else {
+        authInfo.classList.remove("logged-in");
+        authInfo.title = "Nicht angemeldet";
         loginBtn.style.display = "inline-block";
         logoutBtn.style.display = "none";
     }
 }
 
+/**
+ * Initialisiert die MSAL-Instanz mit der Konfiguration aus dem CONFIG-Objekt.
+ * Verarbeitet bestehende Redirect-Ergebnisse und stellt aktive Accounts wieder her.
+ */
 async function initializeMsal() {
-    const ClientID = "9603fe2f-fad8-4a18-9950-14f1eb195745";
-    const TenantID = "2b71e8a3-7c31-40db-84b0-9c7e50b9ea71";
-
     msalInstance = new PublicClientApplication({
         auth: {
-            clientId: ClientID,
-            authority: `https://login.microsoftonline.com/${TenantID}`,
+            clientId: CONFIG.msal.clientId,
+            authority: `https://login.microsoftonline.com/${CONFIG.msal.tenantId}`,
             redirectUri: window.location.origin + window.location.pathname
         },
         cache: {
@@ -293,9 +332,13 @@ async function initializeMsal() {
         activeAccount = accounts[0];
         msalInstance.setActiveAccount(activeAccount);
     }
-    renderAuthInfo();
+    updateAuthDisplay();
 }
 
+/**
+ * Stellt sicher, dass MSAL initialisiert ist.
+ * @throws {Error} Wenn MSAL noch nicht initialisiert wurde
+ */
 async function ensureMsal() {
     if (!msalInstance) {
         throw new Error('MSAL ist noch nicht initialisiert. Bitte Tenant-ID und Client-ID speichern.');
@@ -305,6 +348,13 @@ async function ensureMsal() {
     }
 }
 
+/**
+ * Ermittelt ein Access Token für Microsoft Graph.
+ * Versucht zunächst silent, bei Fehler wird ein Popup geöffnet.
+ *
+ * @returns {Promise<string>} Access Token
+ * @throws {Error} Wenn kein Account angemeldet ist
+ */
 async function getAccessToken() {
     const account = msalInstance.getActiveAccount();
     if (!account) {
@@ -312,11 +362,11 @@ async function getAccessToken() {
     }
 
     const response = await msalInstance.acquireTokenSilent({
-        scopes: graphScopes,
+        scopes: CONFIG.msal.scopes,
         account
     }).catch(async () => {
         return msalInstance.acquireTokenPopup({
-            scopes: graphScopes,
+            scopes: CONFIG.msal.scopes,
             account
         });
     });
@@ -324,11 +374,63 @@ async function getAccessToken() {
     return response.accessToken;
 }
 
+/**
+ * Führt einen GET-Request an die SharePoint Graph API aus.
+ * Zentrale Stelle für Headers und Error-Handling.
+ *
+ * @param {string} accessToken - Microsoft Graph Access Token
+ * @param {string} endpoint - Vollständige API-Endpoint-URL
+ * @returns {Promise<Array>} Array der value-Items aus der API-Response
+ */
+async function callSharePointAPI(accessToken, endpoint) {
+    const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Accept": "application/json",
+            "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
+        }
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+        throw new Error(`SharePoint API Fehler: ${response.status}\n${text}`);
+    }
+
+    return JSON.parse(text).value || [];
+}
+
+/**
+ * Lädt Items aus der konfigurierten SharePoint-Liste.
+ *
+ * @param {string} accessToken - Microsoft Graph Access Token
+ * @param {string|null} filter - Optionaler OData-Filter (z.B. "pruefid eq '...'")
+ * @returns {Promise<Array>} Array der SharePoint List Items
+ */
+async function getSharePointListItems(accessToken, filter = null) {
+    const endpoint =
+        `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharePoint.siteId}` +
+        `/lists/${CONFIG.sharePoint.listId}/items` +
+        `?$expand=fields` +
+        (filter ? `&$filter=fields/${filter}` : '');
+
+    return callSharePointAPI(accessToken, endpoint);
+}
+
+/**
+ * Lädt eine PDF-Datei nach SharePoint hoch und verknüpft sie mit einer Prüf-ID.
+ *
+ * @param {File} file - Die hochzuladende PDF-Datei
+ * @param {string} accessToken - Microsoft Graph Access Token
+ * @param {string} pruefId - Eindeutige Prüf-ID für die Zuordnung
+ * @returns {Promise<Object>} Upload-Ergebnis von SharePoint
+ */
 async function uploadSmallFileToSharePoint(file, accessToken, pruefId) {
 
     const fileName = sanitizeFileName(file.name);
 
-    const endpoint = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/${encodePath(fileName)}:/content`;
+    const endpoint = `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharePoint.siteId}/drive/root:/${encodePath(fileName)}:/content`;
 
     const uploadResponse = await fetch(endpoint, {
         method: 'PUT',
@@ -347,7 +449,7 @@ async function uploadSmallFileToSharePoint(file, accessToken, pruefId) {
     const driveItemId = uploadResult.id;
 
     // Metadaten setzen
-    const metadataEndpoint = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${driveItemId}/listItem/fields`;
+    const metadataEndpoint = `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharePoint.siteId}/drive/items/${driveItemId}/listItem/fields`;
 
     await fetch(metadataEndpoint, {
         method: 'PATCH',
@@ -363,6 +465,9 @@ async function uploadSmallFileToSharePoint(file, accessToken, pruefId) {
     return uploadResult;
 }
 
+/**
+ * Rendert die Liste der ausgewählten Dateien mit Status-Anzeige.
+ */
 function renderFileList() {
     fileList.innerHTML = '';
 
@@ -374,81 +479,49 @@ function renderFileList() {
     selectedFiles.forEach((item, index) => {
         const row = document.createElement('div');
         row.className = 'file-row';
+
+        const statusLabels = {
+            bereit: 'Bereit',
+            uploading: 'Lädt...',
+            success: 'Hochgeladen',
+            error: 'Fehler'
+        };
+
         row.innerHTML = `
           <div class="file-left">
             <strong>${index + 1}. ${escapeHtml(item.file.name)}</strong>
             <div class="small">${formatBytes(item.file.size)} • ${item.file.type || 'unbekannter Typ'}</div>
           </div>
           <div class="file-right">
-            <span class="small ready">${item.status}</span>
-            <button onclick="removeFile(${index})">❌</button>
+            <span class="file-status ${item.status}">${statusLabels[item.status] || item.status}</span>
+            <button class="danger" onclick="removeFile(${index})">Entfernen</button>
           </div>
         `;
         fileList.appendChild(row);
     });
 }
 
-function renderAuthInfo() {
-    const account = msalInstance?.getActiveAccount() || activeAccount;
-
-    if (!account) {
-        authInfo.classList.remove("logged-in");
-        authInfo.title = "Nicht angemeldet";
-        updateAuthUI();
-        return;
-    }
-
-    authInfo.classList.add("logged-in");
-    authInfo.title = "Angemeldet";
-    updateAuthUI();
-}
-
+/**
+ * Sucht einen spezifischen Prüfvorgang nach Prüf-ID.
+ *
+ * @param {string} accessToken - Microsoft Graph Access Token
+ * @param {string} pruefId - Die zu suchende Prüf-ID
+ * @returns {Promise<Array>} Array der gefundenen List-Items
+ */
 async function getPruefvorgangByPruefId(accessToken, pruefId) {
-
-    const listId = "ecac4b28-01fb-489a-ad32-f5ee4fd4bd83";
-
-    const endpoint =
-        `https://graph.microsoft.com/v1.0/sites/${siteId}` +
-        `/lists/${listId}/items` +
-        `?$expand=fields` +
-        `&$filter=fields/pruefid eq '${pruefId}'`;
-
-    const response = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Accept": "application/json",
-            "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
-        }
-    });
-
+    return getSharePointListItems(accessToken, `pruefid eq '${pruefId}'`);
 }
 
+/**
+ * Lädt alle Prüfvorgänge aus SharePoint und dedupliziert nach Auftragsnummer.
+ * Aktualisiert das globale pruefvorgaenge-Array und rendert die Suchergebnisse.
+ *
+ * @param {string} accessToken - Microsoft Graph Access Token
+ */
 async function loadPruefvorgaenge(accessToken) {
-    const listId = "ecac4b28-01fb-489a-ad32-f5ee4fd4bd83";
+    const rawItems = await getSharePointListItems(accessToken);
 
-    const endpoint =
-        `https://graph.microsoft.com/v1.0/sites/${siteId}` +
-        `/lists/${listId}/items?$expand=fields`;
-
-    const response = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Accept": "application/json",
-            "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
-        }
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-        throw new Error(`Prüfvorgänge konnten nicht geladen werden: ${response.status}\n${text}`);
-    }
-
-    const json = JSON.parse(text);
-
-    const alleEintraege = json.value.map(item => ({
+    const alleEintraege = rawItems.map(item => ({
         id: item.id,
         pruefId: item.fields.pruefid,
         auftragsnummer: item.fields.auftragsnummer || item.fields.Title || "Ohne Auftragsnummer",
@@ -468,6 +541,11 @@ async function loadPruefvorgaenge(accessToken) {
     renderSearchResults(pruefvorgaenge);
 }
 
+/**
+ * Rendert die Suchergebnisse als klickbare Liste.
+ *
+ * @param {Array} items - Array von Prüfvorgang-Objekten
+ */
 function renderSearchResults(items) {
     searchResults.innerHTML = "";
 
@@ -494,33 +572,22 @@ function renderSearchResults(items) {
     });
 }
 
+/**
+ * Sucht Fehlerpositionen für einen Prüfvorgang nach Prüf-ID.
+ *
+ * @param {string} accessToken - Microsoft Graph Access Token
+ * @param {string} pruefId - Die Prüf-ID des Vorgangs
+ * @returns {Promise<Array>} Array der Fehlerpositionen-Items
+ */
 async function getFehlerpositionenByPruefId(accessToken, pruefId) {
-    const listId = "ecac4b28-01fb-489a-ad32-f5ee4fd4bd83";
-
-    const endpoint =
-        `https://graph.microsoft.com/v1.0/sites/${siteId}` +
-        `/lists/${listId}/items` +
-        `?$expand=fields` +
-        `&$filter=fields/pruefid eq '${pruefId}'`;
-
-    const response = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Accept": "application/json",
-            "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
-        }
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-        throw new Error(`Ergebnisse konnten nicht geladen werden: ${response.status}\n${text}`);
-    }
-
-    return JSON.parse(text).value || [];
+    return getSharePointListItems(accessToken, `pruefid eq '${pruefId}'`);
 }
 
+/**
+ * Rendert die Analyseergebnisse als HTML-Tabelle.
+ *
+ * @param {Array} items - Array von Ergebnis-Items mit fields-Objekt
+ */
 function renderResultTable(items) {
     if (!items || items.length === 0) {
         resultTable.innerHTML = "<p class='small'>Keine Ergebnisse gefunden.</p>";
@@ -528,17 +595,17 @@ function renderResultTable(items) {
     }
 
     let html = `
-        <table style="width:100%; border-collapse: collapse; font-size:14px;">
+        <table class="result-table">
             <thead>
                 <tr>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Auftrag</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Position</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Pos.-Ampel</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Cluster</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Adresse</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Hinweis Position</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Hinweis Cluster</th>
-                    <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Hinweis Adresse</th>
+                    <th>Auftrag</th>
+                    <th>Position</th>
+                    <th>Pos.-Ampel</th>
+                    <th>Cluster</th>
+                    <th>Adresse</th>
+                    <th>Hinweis Position</th>
+                    <th>Hinweis Cluster</th>
+                    <th>Hinweis Adresse</th>
                 </tr>
             </thead>
             <tbody>
@@ -549,14 +616,14 @@ function renderResultTable(items) {
 
         html += `
             <tr>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${escapeHtml(f.auftragsnummer || "")}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${escapeHtml(f.Title || "")}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${renderAmpel(f.status_ampel)}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${renderAmpel(f.status_Ampel_Cluster)}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${renderAmpel(f.status_ampel_Adresse)}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${escapeHtml(f.Hinweis_pos || "")}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${escapeHtml(f.Hinweis_Cluster || "")}</td>
-                <td style="vertical-align:top; padding:8px; border-bottom:1px solid #eee;">${escapeHtml(f.Hinweis_Adresse || "")}</td>
+                <td>${escapeHtml(f.auftragsnummer || "")}</td>
+                <td>${escapeHtml(f.Title || "")}</td>
+                <td>${renderAmpel(f.status_ampel)}</td>
+                <td>${renderAmpel(f.status_Ampel_Cluster)}</td>
+                <td>${renderAmpel(f.status_ampel_Adresse)}</td>
+                <td>${escapeHtml(f.Hinweis_pos || "")}</td>
+                <td>${escapeHtml(f.Hinweis_Cluster || "")}</td>
+                <td>${escapeHtml(f.Hinweis_Adresse || "")}</td>
             </tr>
         `;
     }
@@ -569,33 +636,37 @@ function renderResultTable(items) {
     resultTable.innerHTML = html;
 }
 
+/**
+ * Rendert einen Ampel-Status als farbiges Badge.
+ *
+ * @param {string} value - Ampel-Wert (grün, gelb, rot oder anderer Wert)
+ * @returns {string} HTML-Span-Element mit entsprechender CSS-Klasse
+ */
 function renderAmpel(value) {
     const text = value || "";
+    const lower = text.toLowerCase();
 
-    let color = "#6b7280";
-    if (text.toLowerCase() === "grün") color = "#16a34a";
-    if (text.toLowerCase() === "gelb") color = "#f59e0b";
-    if (text.toLowerCase() === "rot") color = "#dc2626";
+    let cssClass = "default";
+    if (lower === "grün" || lower === "gruen") cssClass = "gruen";
+    else if (lower === "gelb") cssClass = "gelb";
+    else if (lower === "rot") cssClass = "rot";
 
-    return `
-        <span style="
-            display:inline-block;
-            padding:4px 10px;
-            border-radius:999px;
-            color:white;
-            background:${color};
-            font-size:12px;
-            font-weight:bold;
-        ">
-            ${escapeHtml(text)}
-        </span>
-    `;
+    return `<span class="ampel ${cssClass}">${escapeHtml(text)}</span>`;
 }
 
+/**
+ * Zeigt eine Statusmeldung in der Status-Box an.
+ * @param {string} text - Die anzuzeigende Meldung
+ */
 function setStatus(text) {
     statusBox.textContent = text;
 }
 
+/**
+ * Formatiert Byte-Größen in eine lesbare Darstellung.
+ * @param {number} bytes - Größe in Bytes
+ * @returns {string} Formatierte Größe (z.B. "1.50 MB")
+ */
 function formatBytes(bytes) {
     if (bytes === 0) return '0 Bytes';
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -603,14 +674,29 @@ function formatBytes(bytes) {
     return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
 }
 
+/**
+ * Entfernt für SharePoint ungültige Zeichen aus Dateinamen.
+ * @param {string} name - Original-Dateiname
+ * @returns {string} Bereinigter Dateiname
+ */
 function sanitizeFileName(name) {
     return name.replace(/["#%*:<>?\\/|]/g, '_');
 }
 
+/**
+ * Encodiert URL-Pfad-Segmente für SharePoint-Endpunkte.
+ * @param {string} path - Dateipfad
+ * @returns {string} URL-encodierter Pfad
+ */
 function encodePath(path) {
     return path.split('/').map(segment => encodeURIComponent(segment)).join('/');
 }
 
+/**
+ * Escapt HTML-Sonderzeichen zum Schutz vor XSS.
+ * @param {string} value - Unescapter String
+ * @returns {string} HTML-escapter String
+ */
 function escapeHtml(value) {
     return value
         .replace(/&/g, '&amp;')

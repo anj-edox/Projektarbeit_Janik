@@ -226,3 +226,39 @@ code {
 .ready {
     text-align: right;
 }
+
+.result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.result-table th,
+.result-table td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.result-table th {
+    border-bottom: 1px solid #ddd;
+}
+
+.ampel {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.ampel.gruen { background: #16a34a; }
+.ampel.gelb { background: #f59e0b; }
+.ampel.rot   { background: #dc2626; }
+.ampel.default { background: #6b7280; }
+
+.file-status.uploading { color: #2563eb; }
+.file-status.success   { color: #16a34a; }
+.file-status.error     { color: #dc2626; }

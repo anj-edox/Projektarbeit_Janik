@@ -10,10 +10,22 @@
     <script type="module">
         import { PublicClientApplication } from 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/+esm';
 
+        const CONFIG = {
+            msal: {
+                clientId: "9603fe2f-fad8-4a18-9950-14f1eb195745",
+                tenantId: "2b71e8a3-7c31-40db-84b0-9c7e50b9ea71",
+                scopes: ['User.Read', 'Files.ReadWrite', 'Sites.ReadWrite.All']
+            },
+            sharePoint: {
+                siteId: "edox.sharepoint.com,e68093ae-074a-4851-88dd-31284b07b284,e94104cd-b270-4e09-b29a-1932cc934dbf",
+                listId: "ecac4b28-01fb-489a-ad32-f5ee4fd4bd83"
+            }
+        };
+
         const msalInstance = new PublicClientApplication({
             auth: {
-                clientId: "9603fe2f-fad8-4a18-9950-14f1eb195745",
-                authority: "https://login.microsoftonline.com/2b71e8a3-7c31-40db-84b0-9c7e50b9ea71",
+                clientId: CONFIG.msal.clientId,
+                authority: `https://login.microsoftonline.com/${CONFIG.msal.tenantId}`,
                 redirectUri: window.location.origin + "/auth-end.html",
                 navigateToLoginRequestUrl: false
             },
@@ -25,7 +37,7 @@
         await msalInstance.initialize();
 
         await msalInstance.loginRedirect({
-            scopes: ["User.Read", "Files.ReadWrite", "Sites.ReadWrite.All"]
+            scopes: CONFIG.msal.scopes
         });
     </script>
 </body>
