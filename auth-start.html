@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Login Start</title>
+</head>
+
+<body>
+    <script type="module">
+        import { PublicClientApplication } from 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/+esm';
+
+        const msalInstance = new PublicClientApplication({
+            auth: {
+                clientId: "9603fe2f-fad8-4a18-9950-14f1eb195745",
+                authority: "https://login.microsoftonline.com/2b71e8a3-7c31-40db-84b0-9c7e50b9ea71",
+                redirectUri: window.location.origin + "/auth-end.html",
+                navigateToLoginRequestUrl: false
+            },
+            cache: {
+                cacheLocation: "localStorage"
+            }
+        });
+
+        await msalInstance.initialize();
+
+        await msalInstance.loginRedirect({
+            scopes: ["User.Read", "Files.ReadWrite", "Sites.ReadWrite.All"]
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Upload nach SharePoint</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="app">
+        <div class="app-title">
+            <h1>OrderCheck</h1>
+            <span id="authInfo"></span>
+        </div>
+        <div class="app-header">
+
+            <div class="nav">
+                <button data-screen="upload" onclick="showScreen('upload')">Upload</button>
+                <button data-screen="search" onclick="showScreen('search')">Suche</button>
+                <button data-screen="result" onclick="showScreen('result')">Ergebnis</button>
+            </div>
+            <div class="header-right">
+                <button id="loginBtn" class="icon-btn">Login</button>
+                <button id="logoutBtn" class="icon-btn">Logout</button>
+            </div>
+        </div>
+
+        <div class="app-content">
+            <div class="content-surface">
+
+                <div id="screen-upload" class="screen active">
+                    <h2>Dateien auswählen</h2>
+                    <input id="fileInput" type="file" accept="application/pdf" multiple class="hidden" />
+                    <button id="selectBtn" class="secondary">PDFs auswählen</button>
+                    <button id="uploadBtn" class="primary">Upload nach SharePoint starten</button>
+                    <div id="fileList" style="margin-top:16px;"></div>
+                </div>
+
+                <div id="screen-search" class="screen">
+                    <h2>Prüfvorgang suchen</h2>
+
+                    <input id="searchInput" type="text" placeholder="Auftragsnummer suchen..." autocomplete="off" />
+
+                    <div id="searchResults" class="status"></div>
+
+                    <button id="refreshOrdersBtn" class="secondary">
+                        Auftragsnummern aktualisieren
+                    </button>
+                </div>
+
+                <div id="screen-result" class="screen">
+                    <h2>Analyseergebnis</h2>
+                    <div id="resultTable"></div>
+                </div>
+
+
+
+                <div id="status" class="status">Bereit.</div>
+
+            </div>
+        </div>
+        <script src="script.js" type="module"></script>
+        <script src="https://res.cdn.office.net/teams-js/2.26.0/js/MicrosoftTeams.min.js"></script>
+</body>
+
+</html>

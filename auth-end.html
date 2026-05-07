@@ -1,0 +1,37 @@
+<script src="https://res.cdn.office.net/teams-js/2.26.0/js/MicrosoftTeams.min.js"></script>
+<script type="module">
+    import { PublicClientApplication } from 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.0/+esm';
+
+    const msalInstance = new PublicClientApplication({
+        auth: {
+            clientId: "9603fe2f-fad8-4a18-9950-14f1eb195745",
+            authority: "https://login.microsoftonline.com/2b71e8a3-7c31-40db-84b0-9c7e50b9ea71",
+            redirectUri: window.location.origin + "/auth-end.html",
+            navigateToLoginRequestUrl: false
+        },
+        cache: {
+            cacheLocation: "localStorage"
+        }
+    });
+
+    try {
+        await msalInstance.initialize();
+
+        const result = await msalInstance.handleRedirectPromise();
+
+        await window.microsoftTeams.app.initialize();
+
+        if (result && result.account) {
+            window.microsoftTeams.authentication.notifySuccess("success");
+        } else {
+            window.microsoftTeams.authentication.notifyFailure("Kein Login-Ergebnis erhalten.");
+        }
+    } catch (error) {
+        try {
+            await window.microsoftTeams.app.initialize();
+            window.microsoftTeams.authentication.notifyFailure(error.message || String(error));
+        } catch {
+            document.body.innerText = error.message || String(error);
+        }
+    }
+</script>

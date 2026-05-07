@@ -1,0 +1,228 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 0 20px;
+    background: #f7f7f7;
+    color: #222;
+}
+
+.app {
+    max-width: 1120px;
+    margin: 40px auto;
+    padding: 0 24px;
+}
+
+.app-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.app-title h1 {
+    margin: 0;
+    font-size: 32px;
+}
+
+#authInfo {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #dc2626;
+    display: inline-block;
+}
+
+#authInfo.logged-in {
+    background: #16a34a;
+}
+
+
+
+.app-header {
+    background: white;
+    height: 64px;
+    padding: 0 24px;
+    border-bottom: 1px solid #e5e7eb;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.icon-btn:hover {
+    background: #f3f4f6;
+}
+
+.nav button {
+    transition: all 0.15s ease;
+}
+
+.nav button.active {
+    background: #2563eb;
+    color: white;
+}
+
+.nav button:hover {
+    background: #2563eb;
+}
+
+.app-content {
+    padding: 0;
+}
+
+
+
+.screen {
+    display: none;
+    opacity: 0;
+    transform: translateY(5px);
+    transition: all 0.2s ease;
+}
+
+.screen.active {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.card {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin-bottom: 16px;
+}
+
+.content-surface {
+    background: white;
+    min-height: 620px;
+    padding: 32px;
+    border-radius: 0 0 18px 18px;
+    border: 1px solid #e5e7eb;
+    border-top: none;
+    box-shadow: none;
+}
+
+h1,
+h2 {
+    margin-top: 0;
+}
+
+button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+
+.primary {
+    background: #2563eb;
+    color: white;
+}
+
+.secondary {
+    background: #e5e7eb;
+    color: #111;
+}
+
+.danger {
+    background: #dc2626;
+    color: white;
+}
+
+.status {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #f3f4f6;
+    white-space: pre-wrap;
+}
+
+.hidden {
+    display: none;
+}
+
+.file-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.file-left {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    /* 🔥 DAS ist der Trick */
+}
+
+.small {
+    color: #666;
+    font-size: 14px;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.success {
+    color: #166534;
+    font-weight: bold;
+}
+
+.warning {
+    color: #92400e;
+    font-weight: bold;
+}
+
+.ready {
+    text-align: right;
+}
