@@ -1,0 +1,47 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.16",
+    "version": "1.0.0",
+    "id": "0c4df8cc-76cf-482b-9bf5-da94e1bbaeef",
+    "packageName": "de.ordercheck.app",
+    "developer": {
+        "name": "Andre Jänsch",
+        "websiteUrl": "https://ordercheck-app.netlify.app",
+        "privacyUrl": "https://ordercheck-app.netlify.app/privacy",
+        "termsOfUseUrl": "https://ordercheck-app.netlify.app/terms"
+    },
+    "name": {
+        "short": "OrderCheck",
+        "full": "OrderCheck Angebotsprüfung"
+    },
+    "description": {
+        "short": "Automatische Prüfung von Angebotsänderungen",
+        "full": "Diese App prüft Angebotsänderungen automatisiert auf Basis von SharePoint und zeigt Abweichungen strukturiert an."
+    },
+    "icons": {
+        "color": "color.png",
+        "outline": "outline.png"
+    },
+    "accentColor": "#FFFFFF",
+    "staticTabs": [
+        {
+            "entityId": "mainTab",
+            "name": "OrderCheck",
+            "contentUrl": "https://ordercheck-app.netlify.app/index.html",
+            "websiteUrl": "https://ordercheck-app.netlify.app/index.html",
+            "scopes": [
+                "personal"
+            ]
+        }
+    ],
+    "permissions": [
+        "identity"
+    ],
+    "validDomains": [
+        "ordercheck-app.netlify.app"
+    ],
+    "webApplicationInfo": {
+        "id": "9603fe2f-fad8-4a18-9950-14f1eb195745",
+        "resource": "api://9603fe2f-fad8-4a18-9950-14f1eb195745"
+    }
+}
